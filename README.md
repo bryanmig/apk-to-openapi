@@ -1,71 +1,53 @@
-# Skylight Android API
+# APK to OpenAPI
 
-An extracted OpenAPI 3.1.0 specification for the [Skylight Frame](https://www.ourskylight.com) REST API, reverse-engineered from the Skylight Android app (v1.97.0). This repository also includes a reusable **APK-to-OpenAPI** toolkit (Claude Code plugin + shell scripts) that automates decompilation and API extraction from any Android application.
+A Claude Code plugin that extracts REST API specifications from Android applications. Point it at any APK, APKM, or XAPK file and it will decompile the app, find every HTTP endpoint, and generate a validated OpenAPI 3.1.0 spec.
 
-## What's Here
+Handles both **native Android** apps (Java/Kotlin with Retrofit) and **React Native** apps (including Hermes bytecode).
 
-| Path | Description |
-|------|-------------|
-| `openapi.yaml` | Complete OpenAPI 3.1.0 spec — 110+ endpoints across 22 tags |
-| `skills/apk-to-openapi/` | Reusable Claude Code skill for extracting APIs from any APK |
-| `commands/extract-api.md` | `/extract-api` command definition for Claude Code |
-| `apkm-extract/` | Extracted base APK and bundle metadata |
-
-## Skylight API Overview
-
-The extracted spec documents the full Skylight Frame REST API:
-
-- **Base URL:** `https://app.ourskylight.com/api`
-- **Auth:** HTTP Basic (user ID + token)
-- **Format:** JSON:API-style responses (`data` / `included` envelopes)
-
-### Endpoint Categories
-
-| Tag | Description | Examples |
-|-----|-------------|----------|
-| Auth | Login, registration, password reset | `POST /users`, `POST /sessions` |
-| User | Profile & account management | `GET /user`, `PUT /user` |
-| Frames | Household management | `GET /frames`, `POST /frames` |
-| Devices | Physical frame hardware | `GET /frames/{id}/devices` |
-| Messages | Photos & videos | `GET /frames/{id}/messages` |
-| Reactions | Likes & comments | `POST /frames/{id}/messages/{id}/likes` |
-| Albums | Photo organization | `GET /frames/{id}/albums` |
-| Calendar | Events & scheduling | `GET /frames/{id}/calendar_events` |
-| Categories | Family member profiles | `GET /frames/{id}/categories` |
-| Meals | Meal planning | `GET /frames/{id}/meals` |
-| Chores | Tasks & chores | `GET /frames/{id}/chores` |
-| Lists | Shared family lists | `GET /frames/{id}/lists` |
-| Rewards | Reward system | `GET /frames/{id}/rewards` |
-| Subscriptions | Skylight Plus | `GET /plus_subscriptions` |
-| AI Sidekick | AI-powered features | `POST /auto_creation_intents` |
-| Upload | Media file uploads | `POST /upload_url` |
-
-## Using the OpenAPI Spec
-
-View or interact with the spec using any OpenAPI-compatible tool:
+## Installation
 
 ```bash
-# Validate with Redocly
-npx @redocly/cli lint openapi.yaml
+# Install from GitHub
+claude plugin add github:bryanwhyte/apk-to-openapi
 
-# Generate HTML docs
-npx @redocly/cli build-docs openapi.yaml -o docs.html
-
-# Import into Postman, Insomnia, Bruno, etc.
-# Just open/import openapi.yaml
+# Or test locally without installing
+claude --plugin-dir ./apk-to-openapi
 ```
 
-## APK-to-OpenAPI Toolkit
+## Quick Start
 
-The `skills/apk-to-openapi/` directory contains a general-purpose toolkit for extracting API specifications from any Android app. It handles:
+Once installed, run:
 
-- **APK/APKM/XAPK** bundle formats (auto-extracts base APK from split bundles)
-- **Native Android code** decompilation (Java/Kotlin via jadx)
-- **React Native Hermes bytecode** decompilation (via hermes-dec)
-- **API endpoint extraction** from both native Retrofit annotations and JS HTTP calls
-- **OpenAPI 3.1.0 generation** with schemas, auth, and tags
+```
+/extract-api path/to/app.apkm
+```
 
-### Prerequisites
+Claude walks through the full pipeline automatically:
+
+1. Extract the base APK from the bundle
+2. Decompile native code with jadx
+3. Detect and decompile Hermes bytecode (if React Native)
+4. Search both native and JS layers for API endpoints
+5. Generate a validated `openapi.yaml`
+
+## What It Extracts
+
+### Native Layer (Java/Kotlin)
+
+- **Retrofit** annotations (`@GET`, `@POST`, `@PUT`, `@DELETE`, `@PATCH`) for endpoint definitions
+- Model classes with `@SerializedName` / `@Json` / `@Serializable` annotations for request/response schemas
+- Base URLs from `BuildConfig` or `Retrofit.Builder` calls
+- Auth interceptors (`Authorization`, `Bearer`, `Basic` headers)
+
+### React Native Layer (JavaScript)
+
+- Hermes bytecode detection via magic bytes (`c6 1f bc 03`)
+- Decompiled pseudo-JavaScript from **hermes-dec**
+- API class definitions via `// Original name:` comments
+- Method registries and HTTP calls (`.get`, `.post`, `.put`, `.delete`, `.patch`)
+- Base URL and auth header configuration
+
+## Prerequisites
 
 | Dependency | Purpose | Install |
 |------------|---------|---------|
@@ -75,7 +57,7 @@ The `skills/apk-to-openapi/` directory contains a general-purpose toolkit for ex
 | hermes-dec | Hermes bytecode decompiler | `pip3 install hermes-dec` |
 | npx (optional) | OpenAPI validation | Comes with Node.js |
 
-Or use the included install script:
+Or use the included scripts:
 
 ```bash
 # Check what's installed
@@ -87,24 +69,9 @@ bash skills/apk-to-openapi/scripts/install-dep.sh jadx
 bash skills/apk-to-openapi/scripts/install-dep.sh hermes-dec
 ```
 
-### Usage with Claude Code
+## Manual Usage
 
-This repo is a [Claude Code plugin](https://docs.anthropic.com/en/docs/claude-code). Install it and use the `/extract-api` command:
-
-```
-/extract-api path/to/app.apkm
-```
-
-Claude will walk through the full extraction pipeline:
-1. Extract the base APK from the bundle
-2. Decompile native code with jadx
-3. Detect and decompile Hermes bytecode (if React Native)
-4. Search both native and JS layers for API endpoints
-5. Generate a validated `openapi.yaml`
-
-### Manual Usage
-
-If you prefer to run the steps yourself:
+If you prefer to run the steps yourself instead of using `/extract-api`:
 
 ```bash
 # 1. Extract base APK from bundle
@@ -137,7 +104,6 @@ npx @redocly/cli lint openapi.yaml
 The `find-js-api-calls.sh` script supports targeted searches:
 
 ```bash
-# Search for specific pattern categories
 bash find-js-api-calls.sh index.js --methods    # API method registry
 bash find-js-api-calls.sh index.js --http        # HTTP method calls
 bash find-js-api-calls.sh index.js --config      # Base URL config
@@ -146,33 +112,32 @@ bash find-js-api-calls.sh index.js --endpoints   # Endpoint path strings
 bash find-js-api-calls.sh index.js --all         # Everything (default)
 ```
 
-## How It Works
+## Output
 
-The extraction pipeline targets two layers of a typical Android app:
+The plugin produces:
 
-### Native Layer (Java/Kotlin)
-- Decompiles DEX bytecode back to Java/Kotlin source using **jadx**
-- Searches for **Retrofit** annotations (`@GET`, `@POST`, etc.) to find API interface definitions
-- Reads model classes with `@SerializedName` / `@Json` annotations for request/response schemas
-- Extracts base URLs from `BuildConfig` or `Retrofit.Builder` calls
-- Identifies auth interceptors (`Authorization`, `Bearer`, `Basic` headers)
+- **`openapi.yaml`** — A complete OpenAPI 3.1.0 spec with endpoints, schemas, auth, and tags
+- **Summary** — Endpoint count, functional areas, authentication method, base URL(s), and validation status
 
-### React Native Layer (JavaScript)
-- Detects Hermes bytecode by checking magic bytes (`c6 1f bc 03`)
-- Decompiles Hermes bytecode to pseudo-JavaScript using **hermes-dec**
-- Locates API class definitions via `// Original name:` comments
-- Extracts method registries (`r2['methodName'] = r7` patterns)
-- Finds HTTP calls (`.get`, `.post`, `.put`, `.delete`, `.patch`)
-- Identifies base URL and auth header configuration
+You can use the generated spec with any OpenAPI-compatible tool:
+
+```bash
+# Validate
+npx @redocly/cli lint openapi.yaml
+
+# Generate HTML docs
+npx @redocly/cli build-docs openapi.yaml -o docs.html
+
+# Import into Postman, Insomnia, Bruno, etc.
+```
 
 ## Project Structure
 
 ```
-skylight-android-api/
+apk-to-openapi/
 ├── README.md
-├── openapi.yaml                        # Generated API spec (110+ endpoints)
 ├── commands/
-│   └── extract-api.md                  # Claude Code /extract-api command
+│   └── extract-api.md                  # /extract-api command definition
 ├── skills/
 │   └── apk-to-openapi/
 │       ├── SKILL.md                    # Full workflow documentation
@@ -182,9 +147,6 @@ skylight-android-api/
 │           ├── extract-apk.sh          # Extract base APK from bundles
 │           ├── detect-hermes.sh        # Detect Hermes bytecode
 │           └── find-js-api-calls.sh    # Extract JS API patterns
-├── apkm-extract/
-│   ├── base.apk                        # Extracted base APK
-│   └── info.json                       # Bundle metadata
 └── .claude-plugin/
     └── plugin.json                     # Plugin metadata
 ```

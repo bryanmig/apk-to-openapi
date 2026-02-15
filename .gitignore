@@ -1,0 +1,21 @@
+# Build artifacts from extraction runs
+*-decompiled/
+*-decompiled-js/
+*-extract/
+
+# Generated specs (each run produces its own)
+openapi.yaml
+
+# Input files
+*.apk
+*.apkm
+*.xapk
+
+# Python virtual environment
+.venv/
+
+# OS
+.DS_Store
+
+# Node
+node_modules/
